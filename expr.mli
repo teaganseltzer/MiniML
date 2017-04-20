@@ -47,6 +47,10 @@ val vars_of_list : varid list -> varidset ;;
    variables in e *)
 val free_vars : expr -> varidset
 
+(* list_of_varidset-- Returns list of varidset, since SS can't be
+ * used in other files without breaking the abstraction barrier *)
+val list_of_varidset : varidset -> varid list 
+
 (* new_varname () -- Return a freshly minted varid *)
 val new_varname : unit -> varid
 

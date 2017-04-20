@@ -86,18 +86,76 @@ let rec free_vars (exp : expr) : varidset =
         let rall, rused = all_vars e2 all used in
         (SS.union lall rall), (SS.union lused rused)) in 
   let all, used = all_vars exp SS.empty SS.empty in
-  SS.iter print_string all;
-  all;;
+  let free = SS.filter (fun x -> not (SS.mem x used)) all in
+(*  SS.iter print_string free;
+  print_string "\n used:";
+  SS.iter print_string used;
+  print_string "\n all";
+  SS.iter print_string all; *)
+  free;;
+
+(* returns a varid list from a varid set *)
+let  list_of_varidset (s : varidset) : varid list =
+  SS.elements s;;
 (* Return a fresh variable, constructed with a running counter a la
     gensym. Assumes no variable names use the prefix "var". *)
-let new_varname () : varid =
-  failwith "new_varname not implemented" ;;
-  
+let new_varname =
+  let ctr = ref 0 in
+  fun () ->
+      let v = "x" ^ string_of_int (!ctr) in
+        ctr := !ctr + 1;
+    v ;;  
+
 (* Substitute [repl] for free occurrences of [var_name] in [exp] *)
 let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
-  failwith "subst not implemented" ;;
-
-    
+  (*we use a helper function so that we can keep track of the free variables
+   * if in the original expression*)
+  let free_var_set = free_vars exp in
+  let rec subst_helper (var_name : varid) (repl : expr) (exp : expr) : expr =
+    let part_subst = subst_helper var_name repl in
+    match exp with
+    | Var id -> if id = var_name && SS.mem id free_var_set then repl else Var id
+    | Unop (u, e1) -> Unop(u, part_subst e1)
+    | Binop (b, e1, e2) -> Binop(b, part_subst e1, part_subst e2)
+    | Conditional (e1, e2, e3) ->
+        Conditional (part_subst e1, part_subst e2, part_subst e2 )
+    | Fun (e1, e2) -> Fun(e1, part_subst e2)
+    | Let (id, e1, e2) -> 
+        if id = var_name 
+        then Let(id, part_subst e1, e2)
+        else if id <> var_name 
+        then Let(id, part_subst e1, part_subst e2)
+    (*unsure if order of subst matters here, if errors come back to this line *)
+        else let nvar = new_varname () in 
+          Let(nvar, part_subst e1, part_subst (subst "id" (Var nvar) e2))
+    (*in usage of subst we sont sub a letrec into a letrec, only the e1 into
+     * the e2 in which case the id will be a free var in e2  *)
+    | Letrec (id, e1, e2) ->
+        if id = var_name 
+        then Let(id, part_subst e1, e2)
+        else if id <> var_name 
+        then Let(id, part_subst e1, part_subst e2)
+    (*unsure if order of subst matters here, if errors come back to this line *)
+        else let nvar = new_varname () in 
+          Let(nvar, part_subst e1, part_subst (subst "id" (Var nvar) e2))
+ 
+        (*working with the assumption that any call of subst to replace 
+       * a var with a Let rec will be a well formed recursive function 
+       * hoping I don't get a stackover flow with this, if I do check this line
+       *
+        (match repl with 
+        | Letrec (idr, e1r, e2r) -> Letrec(new_varname(), e1, subst_helper id e1 e2r)
+        | _ -> Letrec(id, part_subst e1, part_subst e2))
+        *)  (*let nvar = new_varname () in
+        subst_helper id e2 
+        Letrec (nvar, e1, subst_helper id (part_subst e1) e2) *)
+        (*swap e1 in e2 for id *) 
+    | App (e1, e2) -> App (part_subst e1, part_subst e2)
+    | Raise -> Raise
+    | Unassigned -> Unassigned  
+    | Num n -> Num n
+    | Bool b -> Bool b in
+  subst_helper var_name repl exp;; 
 (* exp_to_string -- Returns a string representation of the expr *)
 let rec exp_to_string (exp : expr) : string =
 (* let binop_to_string (b : binop) : string =
@@ -135,7 +193,7 @@ let rec exp_to_abstract_string (exp : expr) : string =
                         exp_to_abstract_string e1 ^ ", " ^
                         exp_to_abstract_string e2 ^ ")"
   | Conditional (e1, e2, e3) -> 
-      "Conditional (" ^ exp_to_abstract_string e1 ^ ", " ^ 
+      "Conditional(" ^ exp_to_abstract_string e1 ^ ", " ^ 
        exp_to_abstract_string e2 ^ ", " ^ exp_to_abstract_string e3 ^ ")"
   | Fun (id, e1) -> "Fun(" ^ id ^ ", " ^ exp_to_abstract_string e1 ^")"
   | Let (id, e1, e2) -> 

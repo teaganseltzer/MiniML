@@ -79,8 +79,30 @@ module Env : Env_type =
     environment model version. *)
 
 let eval_t exp _env = exp ;;
-let eval_s _ = failwith "eval_s not implemented" ;;
-let eval_d _ = failwith "eval_d not implemented" ;;
+(*everytime we run into a let add that var to the env and then replace
+ * free variables  as we check if they are free*)
+let rec eval_s exp env =
+  let eval_binop (b : binop) (e1 : expr) (e2 : expr) : expr =
+    match b, e1, e2 with
+    | Plus, Num n1, Num n2 -> Num (n1 + n2)
+    | Minus, Num n1, Num n2 -> Num (n1 - n2)
+    | Times, Num n1, Num n2 -> Num (n1 * n2)
+    | Equals, e1, e2 -> Bool (e1 = e2)
+    | LessThan, e1, e2 -> Bool (e1 < e2)
+    | _ -> raise (EvalError "Binop used on incorrect typs") in
+
+  match exp with 
+  | Var id -> Var id
+  | Num n -> Num n
+  | Bool b -> Bool b
+  | Unop(u, e) -> 
+      (match (eval_s e _) with
+      | Num n -> Num (~- n)
+      | _ -> raise (EvalError "attempted to negate a non-integer"))
+  | Binop(b, e1, e2) -> eval_binop b e1 e2  
+  failwith "eval_s not done";;
+  
+  let eval_d _ = failwith "eval_d not implemented" ;;
 let eval_l _ = failwith "eval_l not implemented" ;;
 
 let evaluate = eval_t ;;
