@@ -90,19 +90,34 @@ let rec eval_s exp env =
     | Equals, e1, e2 -> Bool (e1 = e2)
     | LessThan, e1, e2 -> Bool (e1 < e2)
     | _ -> raise (EvalError "Binop used on incorrect typs") in
-
   match exp with 
   | Var id -> Var id
-  | Num n -> Num n
   | Bool b -> Bool b
   | Unop(u, e) -> 
-      (match (eval_s e _) with
+      (match (eval_s e env) with
       | Num n -> Num (~- n)
-      | _ -> raise (EvalError "attempted to negate a non-integer"))
-  | Binop(b, e1, e2) -> eval_binop b e1 e2  
-  failwith "eval_s not done";;
-  
+      | _ -> raise (EvalError "attempted to negate a non-integer") )
+  | Binop(b, e1, e2) -> eval_binop b e1 e2 
+  | Conditional(e1, e2, e3) -> 
+      (match eval_s e1 env with 
+      | Bool true -> eval_s e2 env
+      | Bool false -> eval_s e3 env
+      | _ -> raise (EvalError ": is not of type bool ")) 
+  | Fun(_,_) -> raise EvalException
+  | Let(id, e1, e2)-> eval_s (subst id e1 e2) env
+  | Letrec(_,_,_) -> raise EvalException
+  | Raise -> raise EvalException
+  | Unassigned -> raise EvalException
+  (*by the time this pattern is matched the first argument of app should be a function   *)
+  | App (f, e1) -> 
+     (match f with
+     (* go white board out multiple apps*)
+     (*| App (e2, e3) -> eval_s (eval_s e2) env *)  
+     | Fun(id, e) -> eval_s (subst id e1 e) env
+     | _ -> raise (EvalError "this is not a function it cannot be applied")) 
+  | Num n -> Num n
+   ;; 
   let eval_d _ = failwith "eval_d not implemented" ;;
 let eval_l _ = failwith "eval_l not implemented" ;;
 
-let evaluate = eval_t ;;
+let evaluate = eval_s ;;

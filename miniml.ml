@@ -39,7 +39,9 @@ let repl () =
         (* evaluate it *)
         let res = Ev.evaluate exp env in
         (* print the result *)
-        printf "==> %s\n" (Ex.exp_to_abstract_string res)
+        printf "==> %s\n" (Ex.exp_to_abstract_string res);
+
+        printf "==> %s\n" (Ex.exp_to_string res)
       with
       | Parsing.Parse_error -> printf "xx> parse error\n"
       | Ev.EvalError msg -> printf "xx> evaluation error: %s\n" msg

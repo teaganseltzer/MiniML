@@ -156,39 +156,50 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
     | Num n -> Num n
     | Bool b -> Bool b in
   subst_helper var_name repl exp;; 
-(* exp_to_string -- Returns a string representation of the expr *)
-let rec exp_to_string (exp : expr) : string =
-(* let binop_to_string (b : binop) : string =
-  match b with
-  | Plus -> "+"
-  | Minus -> "-"
-  | Times -> "*"
-  | Equals -> "="
-  | LessThan -> "<" in
-*)
- failwith "exp_to_string not implemented" ;;
 
-(* exp_to_abstract_string: Returns a string representation of the abstract
-   syntax of the expr *)
-let rec exp_to_abstract_string (exp : expr) : string =
-  let binop_to_abs_string (b : binop) : string =
+let binop_to_abs_string (b : binop) : string =
     match b with
     | Plus -> "+"
     | Minus -> "-"
     | Times -> "*"
     | Equals -> "="
-    | LessThan -> "<" in
+    | LessThan -> "<";;
 
   (*using match statement so that this is easier to extend later *)
-  let unop_to_abs_string (u : unop) : string =
+let unop_to_abs_string (u : unop) : string =
     match u with
-    | Negate -> "Negate" in
+    | Negate -> "~" ;;
 
+
+
+(* exp_to_string -- Returns a string representation of the expr *)
+let rec exp_to_string (exp : expr) : string =
+  (match exp with
+  | Var id -> id
+  | Num n -> string_of_int n
+  | Bool b -> string_of_bool b
+  | Unop (u, e1) -> unop_to_abs_string u ^ (exp_to_string e1) 
+  | Binop (b, e1, e2) -> exp_to_string e1 ^ binop_to_abs_string b ^ exp_to_string e2
+  | Conditional (e1, e2, e3) -> "if " ^ exp_to_string e1 ^ " then " ^
+                                 exp_to_string e2 ^ "else" ^ exp_to_string e3
+  | Fun (id, e) -> "fun " ^ id ^ " -> " ^ exp_to_string e 
+  | Let (id, e1, e2) -> "let " ^ id ^ " = " ^ exp_to_string e1 ^ " in " 
+                         ^ exp_to_string e2
+  | Letrec (id, e1, e2) -> "let rec" ^ id ^ " = fun " ^ exp_to_string e1 ^ 
+                           " in " ^ exp_to_string e2 
+  | Raise -> "raise?"
+  | Unassigned -> "Unassigned"
+  | App (e1, e2) -> exp_to_string e1 ^ " " ^ exp_to_string e2)
+;; 
+
+(* exp_to_abstract_string: Returns a string representation of the abstract
+   syntax of the expr *)
+let rec exp_to_abstract_string (exp : expr) : string =
   match exp with
   | Var id -> "Var(" ^ id ^ ")"
   | Num x -> "Num(" ^ string_of_int x ^ ")"
   | Bool b -> "Bool (" ^ string_of_bool b ^ ")"
-  | Unop (u, e) -> unop_to_abs_string u ^ "(" ^ exp_to_abstract_string e ^ ")"
+  | Unop (u, e) -> "(" ^unop_to_abs_string u ^ ", " ^ exp_to_abstract_string e ^ ")"
   | Binop (b, e1, e2) -> "Binop" ^ "(" ^ binop_to_abs_string b ^ ", " ^
                         exp_to_abstract_string e1 ^ ", " ^
                         exp_to_abstract_string e2 ^ ")"
