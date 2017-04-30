@@ -118,7 +118,7 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
     | Unop (u, e1) -> Unop(u, part_subst e1)
     | Binop (b, e1, e2) -> Binop(b, part_subst e1, part_subst e2 )
     | Conditional (e1, e2, e3) ->
-        Conditional (subst var_name repl e1, subst var_name repl e2, subst var_name repl e3)
+        Conditional (part_subst e1, part_subst e2, part_subst e3)
     | Fun (e1, e2) -> Fun(e1, part_subst e2)
     | Let (id, e1, e2) -> 
         if id = var_name 
@@ -142,18 +142,6 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
         print_string "using nvar repl: \n"; 
           Letrec(id, subst var_name repl e1 , subst var_name repl (
           (subst id (Var nvar) e2))) 
- 
-        (*working with the assumption that any call of subst to replace 
-       * a var with a Let rec will be a well formed recursive function 
-       * hoping I don't get a stackover flow with this, if I do check this line
-       *
-        (match repl with 
-        | Letrec (idr, e1r, e2r) -> Letrec(new_varname(), e1, subst_helper id e1 e2r)
-        | _ -> Letrec(id, part_subst e1, part_subst e2))
-        *)  (*let nvar = new_varname () in
-        subst_helper id e2 
-        Letrec (nvar, e1, subst_helper id (part_subst e1) e2) *)
-        (*swap e1 in e2 for id *) 
     | App (e1, e2) -> App (part_subst e1, part_subst e2)
     | Raise -> Raise
     | Unassigned -> Unassigned  
@@ -183,7 +171,8 @@ let rec exp_to_string (exp : expr) : string =
   | Num n -> string_of_int n
   | Bool b -> string_of_bool b
   | Unop (u, e1) -> unop_to_abs_string u ^ (exp_to_string e1) 
-  | Binop (b, e1, e2) -> exp_to_string e1 ^ binop_to_abs_string b ^ exp_to_string e2
+  | Binop (b, e1, e2) -> 
+      exp_to_string e1 ^ binop_to_abs_string b ^ exp_to_string e2
   | Conditional (e1, e2, e3) -> "if " ^ exp_to_string e1 ^ " then " ^
                                  exp_to_string e2 ^ " else " ^ exp_to_string e3
   | Fun (id, e) -> "fun " ^ id ^ " -> " ^ exp_to_string e 
@@ -203,10 +192,11 @@ let rec exp_to_abstract_string (exp : expr) : string =
   | Var id -> "Var(" ^ id ^ ")"
   | Num x -> "Num(" ^ string_of_int x ^ ")"
   | Bool b -> "Bool (" ^ string_of_bool b ^ ")"
-  | Unop (u, e) -> "(" ^unop_to_abs_string u ^ ", " ^ exp_to_abstract_string e ^ ")"
-  | Binop (b, e1, e2) -> "Binop" ^ "(" ^ binop_to_abs_string b ^ ", " ^
-                        exp_to_abstract_string e1 ^ ", " ^
-                        exp_to_abstract_string e2 ^ ")"
+  | Unop (u, e) ->
+      "(" ^unop_to_abs_string u ^ ", " ^ exp_to_abstract_string e ^ ")"
+  | Binop (b, e1, e2) -> 
+      "Binop" ^ "(" ^ binop_to_abs_string b ^ ", " ^ exp_to_abstract_string e1
+       ^ ", " ^ exp_to_abstract_string e2 ^ ")"
   | Conditional (e1, e2, e3) -> 
       "Conditional(" ^ exp_to_abstract_string e1 ^ ", " ^ 
        exp_to_abstract_string e2 ^ ", " ^ exp_to_abstract_string e3 ^ ")"
