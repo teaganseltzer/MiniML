@@ -82,7 +82,7 @@ let eval_t exp _env = exp ;;
 (*everytime we run into a let add that var to the env and then replace
  * free variables  as we check if they are free*)
 let rec eval_s exp env =
-  print_string (exp_to_string exp ^ "\n");
+  (*helper function to evaluate binops *)
   let eval_binop (b : binop) (e1 : expr) (e2 : expr) : expr =
     match b, e1, e2 with
     | Plus, Num n1, Num n2 -> Num (n1 + n2)
@@ -98,25 +98,25 @@ let rec eval_s exp env =
     match a with
     | Fun(id, f) -> print_string ("eval app fun id: "^ id ^ (exp_to_string e));
          eval_s (subst id e f) env
-    (*how do I sub e into e1/ recfun*)
     | Letrec(id, recfun, e2) ->
-      let Fun(fid, body) = recfun in
-      let newvar = new_varname () in
-      let newrecfun = Fun(newvar, subst fid (Var(newvar)) body) in
-      let newe1 = subst id (Letrec(id,newrecfun,Var(id))) recfun in
-      let Fun(new_fid, new_body) = newe1 in
-      eval_s (subst id (subst new_fid e new_body) e2)env
+        let (fid, body) =
+          match recfun with
+          | Fun(fid, body) -> fid,body
+          | _ -> raise (EvalError "cannot use letrec with a non function") in
+        let newvar = new_varname () in
+        let newrecfun = Fun(newvar, subst fid (Var(newvar)) body) in
+        let newe1 = subst id (Letrec(id,newrecfun,Var(id))) recfun in
+        let (new_fid, new_body) = 
+          match newe1 with
+          | Fun(new_fid, new_body) -> new_fid, new_body
+          | _ -> raise (EvalError "cannot use letrec with a non function") in
+        eval_s (subst id (subst new_fid e new_body) e2)env
     | App(App(e1, e2), Fun(id, f)) -> 
         eval_app(App(e1, e2)) (eval_s (subst id e f) env)
     | App(App(e1, e2), e) -> eval_app (App(e1, e2)) e
     | App(Fun(id1, f1), Fun(id2, f2)) -> 
-    eval_s (subst id1 (eval_s (subst id2 e f2)env) f1) env
-    (*think about what is happening to the initial e, it should be used in e3? *)
-    (*| App(Letrec(id, e2, e3), e) ->
-        print_string "app letrec \n"; *)
-    | _ -> print_string (exp_to_string a);
-    raise (EvalError "this is not a function, it cannot be applied") in
-  
+        eval_s (subst id1 (eval_s (subst id2 e f2)env) f1) env
+    | _ -> raise (EvalError "this is not a function, it cannot be applied") in
   match exp with 
   | Var id -> Var id
   | Bool b -> Bool b
@@ -135,46 +135,29 @@ let rec eval_s exp env =
   | Let(id, e1, e2)-> 
       (*first case covers aliasing, i.e let x = y in let y = ... *)
       (match e2 with 
-      | Let(id2, def, body) -> if id = id2 then eval_s (Let(id, def, body)) env
-                               else eval_s (Let(id2, subst id e1 def, subst id e1 body)) env
+      | Let(id2, def, body) -> 
+          if id = id2 then eval_s (Let(id, def, body)) env
+          else eval_s (Let(id2, subst id e1 def, subst id e1 body)) env
       | _ -> eval_s (subst id e1 e2) env)
   | Letrec(id, recfun, e2) -> 
-      (* something weird going on in the e2's here*)
-      let Fun(recfun_id, recfun_body) = recfun in
+      let (recfun_id, recfun_body) = 
+        (match recfun with
+        | Fun(recfun_id, recfun_body) -> recfun_id, recfun_body
+        | _ -> raise (EvalError "cannot use letrec with a non function")) in
       let newvar = new_varname () in
-      (*(*print_string ("oldrecfun: " ^ exp_to_string recfun ^ "\n"); *)
-      (*print_string ("newrecfun: " ^ exp_to_string newrecfun ^"\n"); *)
-      let newletrec = Letrec(id, newrecfun, (subst id recfun e2) ) in
-      print_string (exp_to_string (subst id newletrec recfun));
-      print_string "eval letrec: \n";
-      print_string (exp_to_string(subst id (subst id newletrec recfun) e2) ^ "\n"); 
-      eval_s(subst id (subst id newletrec recfun) e2 ) env 
-      eval_s (subst id newe1 e2) [] *)
-      
       let newrecfun = Fun(newvar, subst recfun_id (Var(newvar)) recfun_body) in
       let newe1 = subst id (Letrec(id,newrecfun,Var(id))) recfun in
       (match e2 with 
       | Letrec(id2, def, body) ->
-          print_string "letrec match case \n";
           if id = id2 then eval_s (Letrec(id, def, body)) env
           else eval_s (Letrec(id2, subst id recfun def, subst id recfun body)) env
       | _ -> eval_s (subst id newe1 e2) env)
-
-(*
-      eval_s 
-(subst id 
-(subst id recfun (Letrec(newvar, subst id (Var(newvar)) recfun, subst id (Var(newvar)) e2))
-         ) e2)
-         env
-  *)    
-  | Raise -> raise EvalException
+  | Raise -> raise (EvalError "exception raised")
   | Unassigned -> raise EvalException
-  (*by the time this pattern is matched the first argument of app should be ai
-   *function or evaluate to one eventually*)
   | App (f, e1) -> eval_app f (eval_s e1 env)
   | Num n -> Num n
    ;; 
-  let eval_d _ = failwith "eval_d not implemented" ;;
+let eval_d _ = failwith "eval_d not implemented" ;;
 let eval_l _ = failwith "eval_l not implemented" ;;
 
-let evaluate = eval_s ;;
+let evaluate = eval_t ;;
