@@ -94,10 +94,8 @@ let rec eval_s exp env =
   (*helper function to recursively evaluate nested apps, e is the expr
    * which is applied to possibly nested functions *)
   let rec eval_app (a : expr) (e : expr) : expr =
-    print_string (exp_to_string a ^ "\n");
     match a with
-    | Fun(id, f) -> print_string ("eval app fun id: "^ id ^ (exp_to_string e));
-         eval_s (subst id e f) env
+    | Fun(id, f) -> eval_s (subst id e f) env
     | Letrec(id, recfun, e2) ->
         let (fid, body) =
           match recfun with
@@ -120,7 +118,8 @@ let rec eval_s exp env =
   match exp with 
   | Var id -> Var id
   | Bool b -> Bool b
-  | Unop(u, e) -> 
+  (*currently do not need to worry about what the unop is as we only have 1 *)
+  | Unop(_, e) -> 
       (match (eval_s e env) with
       | Num n -> Num (~- n)
       | _ -> raise (EvalError "attempted to negate a non-integer") )
@@ -130,7 +129,7 @@ let rec eval_s exp env =
       | Bool true -> eval_s e2 env
       | Bool false -> eval_s e3 env
       | _ -> raise (EvalError ": is not of type bool ")) 
-  (*if we find a unapplied rec/function we should just reuturn it as utop does  *)
+  (*if we find a unapplied function we should just reuturn it as utop does*)
   | Fun(id, e) -> Fun(id, e)
   | Let(id, e1, e2)-> 
       (*first case covers aliasing, i.e let x = y in let y = ... *)
@@ -150,7 +149,8 @@ let rec eval_s exp env =
       (match e2 with 
       | Letrec(id2, def, body) ->
           if id = id2 then eval_s (Letrec(id, def, body)) env
-          else eval_s (Letrec(id2, subst id recfun def, subst id recfun body)) env
+          else eval_s (Letrec(id2, subst id recfun def, 
+                       subst id recfun body)) env
       | _ -> eval_s (subst id newe1 e2) env)
   | Raise -> raise (EvalError "exception raised")
   | Unassigned -> raise EvalException

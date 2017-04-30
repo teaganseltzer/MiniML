@@ -128,12 +128,11 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
     (*unsure if order of subst matters here, if errors come back to this line *)
         else let nvar = new_varname () in 
           Let(nvar, part_subst e1,
-          part_subst (subst "id" (Var nvar) e2))
+          subst id (Var nvar ) (part_subst  e2))
     (*in usage of subst we sont sub a letrec into a letrec, only the e1 into
      * the e2 in which case the id will be a free var in e2  *)
     (*I think I have an issue with free vars in rec expressions,  *)
     | Letrec (id, e1, e2) ->
-        print_string "letrec subst used:\n";
         if id = var_name 
         then Letrec(id, part_subst e1, part_subst e2)
         else if id <> var_name && not (SS.mem id (free_vars repl)) 
