@@ -44,26 +44,44 @@ module Env : Env_type =
     (* Creates a closure from an expression and the environment it's
        defined in *)
     let close (exp : expr) (env : env) : value =
-      failwith "close not implemented" ;;
+      Closure(exp, env)
 
     (* Looks up the value of a variable in the environment *)
     let lookup (env : env) (varname : varid) : value =
-      failwith "lookup not implemented" ;;
-
+      try  
+        let (_,valref) = List.find (fun (id, _) -> id = varname) env in
+        !valref
+      with
+      Not_found -> raise (EvalError ("unbound variable " ^ varname)) 
     (* Returns a new environment just like env except that it maps the
        variable varid to loc *)
     let extend (env : env) (varname : varid) (loc : value ref) : env =
-      failwith "extend not implemented" ;;
+      try 
+        let(_) = lookup env varname in
+        List.map (fun (id, valref) -> if id = varname then id, loc else id, valref)
+        env
+      with
+        EvalError _ -> (varname, loc) :: env  
 
     (* Returns a printable string representation of a value; the flag
        printenvp determines whether to include the environment in the
        string representation when called on a closure *)
-    let value_to_string ?(printenvp : bool = true) (v : value) : string =
-      failwith "value_to_string not implemented" ;;
-
-   (* Returns a printable string representation of an environment *)
+    let rec value_to_string ?(printenvp : bool = true) (v : value) : string =
+      match v with 
+      | Closure(exp, env) -> 
+          if printenvp then
+            "value: " ^ (exp_to_string exp) ^ " \n env: " ^ (List.fold_right 
+            (fun (id, valref) c -> id ^ (value_to_string !valref) ^ c ) env "")
+          else exp_to_string exp 
+      | Val e -> exp_to_string e
+   
+   (* Returns a printable string representation of an environment
+    * Note on design, this reuses code in value_to_string. I would use
+    * a helper function to reuse code but value_to_string would not be
+    * in the scope of a helper function defined before value_to_string. *)
    let env_to_string (env : env) : string =
-     failwith "env_to_string not implemented" ;;
+     (List.fold_right (fun (id, valref) c -> id ^ (value_to_string !valref)
+      ^ c ) env "")
 
   end
 ;;
@@ -81,8 +99,8 @@ module Env : Env_type =
 let eval_t exp _env = exp ;;
 (*everytime we run into a let add that var to the env and then replace
  * free variables  as we check if they are free*)
-let rec eval_s exp env =
-  (*helper function to evaluate binops *)
+
+(*helper function to evaluate binops *)
   let eval_binop (b : binop) (e1 : expr) (e2 : expr) : expr =
     match b, e1, e2 with
     | Plus, Num n1, Num n2 -> Num (n1 + n2)
@@ -90,12 +108,17 @@ let rec eval_s exp env =
     | Times, Num n1, Num n2 -> Num (n1 * n2)
     | Equals, e1, e2 -> Bool (e1 = e2)
     | LessThan, e1, e2 -> Bool (e1 < e2)
-    | _ -> raise (EvalError "Binop used on incorrect types") in
+    | _ -> 
+         print_string (exp_to_string e1 ^ "   " ^ exp_to_string e2);
+        raise (EvalError "Binop used on incorrect types");;
+
+let rec eval_s exp env =
+  print_string (exp_to_string exp ^ "\n");  
   (*helper function to recursively evaluate nested apps, e is the expr
    * which is applied to possibly nested functions *)
-  let rec eval_app (a : expr) (e : expr) : expr =
+ (* let rec eval_app (a : expr) (e : expr) : expr =
     match a with
-    | Fun(id, f) -> eval_s (subst id e f) env
+    | Fun(id, f) -> print_string (exp_to_string e ^" :e\n");eval_s (subst id e f) env
     | Letrec(id, recfun, e2) ->
         let (fid, body) =
           match recfun with
@@ -111,11 +134,12 @@ let rec eval_s exp env =
         eval_s (subst id (subst new_fid e new_body) e2)env
     | App(App(e1, e2), Fun(id, f)) -> 
         eval_app(App(e1, e2)) (eval_s (subst id e f) env)
-    | App(App(e1, e2), e) -> eval_app (App(e1, e2)) e
-    | App(Fun(id1, f1), Fun(id2, f2)) -> 
-        eval_s (subst id1 (eval_s (subst id2 e f2)env) f1) env
+    | App(App(e1, e2), e3) -> print_string "app e"; eval_app (App(e1, e2)) (eval_app e3 e) 
+    | App(Fun(id1, f1), Fun(id2, f2)) ->
+        print_string (exp_to_string e ^ " \n"); 
+        eval_app (Fun(id2, (subst id1 (Fun(id2,f2)) f1))) e
     | _ -> raise (EvalError "this is not a function, it cannot be applied") in
-  match exp with 
+  *)match exp with 
   | Var id -> Var id
   | Bool b -> Bool b
   (*currently do not need to worry about what the unop is as we only have 1 *)
@@ -154,10 +178,181 @@ let rec eval_s exp env =
       | _ -> eval_s (subst id newe1 e2) env)
   | Raise -> raise (EvalError "exception raised")
   | Unassigned -> raise EvalException
-  | App (f, e1) -> eval_app f (eval_s e1 env)
+  | App (f, e1) ->
+      print_string ("app f e1: " ^ exp_to_string f ^ "\n");
+      print_string ( "eval f : " ^exp_to_string (eval_s f env) ^ "\n");
+      print_string ("e: " ^ exp_to_string e1 ^ "\n");
+      (match eval_s f env, e1 with
+      | (Fun(id, body), Fun(id2, body2)) -> 
+          eval_s (Fun(id2, subst id body2 body)) env
+      | (Fun(id, body), _ ) -> 
+          print_string( "sub e1 into f: " ^ exp_to_string ((subst id (eval_s e1 env) body )) ^ "\n");
+          eval_s (Fun(id, subst id (eval_s e1 env) body )) env
+      | _ -> raise (EvalError "this is not a function it cannot be applied"))
   | Num n -> Num n
    ;; 
-let eval_d _ = failwith "eval_d not implemented" ;;
-let eval_l _ = failwith "eval_l not implemented" ;;
+let rec eval_d (exp : expr) (env : Env.env) : expr =
+  print_string (exp_to_abstract_string exp ^ "\n");
+  let replace id env : expr = 
+    match Env.lookup env id with
+              | Env.Val (expr) -> expr
+              | Env.Closure (expr, _) -> expr in
+ 
+  (*we have to do the var replacing in here or else nested apps attempt
+   * to replace functions with other functions and we lose track of the 
+   * first value we apply to the first function. This is due to the way
+   * expressions are parsed i.e f f 3= App( App(f,f),3) rather than
+   * App(f, App(f,3))
+   * currently works for f f 3 and also I think f f f 3 *)
+  let rec eval_app (f : expr) (e : expr) (env : Env.env) =
+    (match f  with
+    | Var id -> eval_app (replace id env) e env
+    | App(Var id1, Var id2) ->
+        eval_app (App((replace id1 env), (replace id2 env))) e env
+    | Fun (id, body) -> 
+        print_string "fun e \n";
+        print_string (exp_to_string e);
+        eval_d body (Env.extend env id (ref (Env.Val e )))
+    | App(Fun(id1, body1), Fun(id2, body2)) ->
+        print_string "fun fun \n";
+        print_string (exp_to_string e ^ "\n");
+        eval_app (Fun(id1, body1)) (eval_d body2 (Env.extend env id2 
+                                      (ref (Env.Val e)))) env
+    | App (App(e1, e2), Fun(id, body)) ->
+        print_string "app fun \n";
+        eval_app (App(e1, e2)) (eval_d body (Env.extend env id (ref (Env.Val e)))) env
+    | App (App(e1, e2), e3) -> eval_app (App(e1, e2)) (eval_app e3 e env) env   
+        (*
+        (match func with 
+        | Fun (id, body) ->
+            let first_app = eval_d body (Env.extend env id 
+                            (ref (Env.Val (eval_d e env)))) in
+            eval_app func first_app env
+        | App (e1, e2) -> eval_app (eval_d e1 env) (eval_d e2 env) env
+        | _ -> print_string (exp_to_string func);
+        raise (EvalError "This is not a function it cannot be applied")) *)
+    | _ -> 
+         print_string (exp_to_string f);
+        raise (EvalError "this is not a function it cannot be applied")) in
+  match exp with 
+  | Var id -> eval_d (replace id env) env
+  | Bool b -> Bool b
+  | Unop(_, e) -> 
+      (match (eval_d e env) with
+      | Num n -> Num (~- n)
+      | _ -> raise (EvalError "attempted to negate a non-integer") )
+  | Binop(b, e1, e2) -> eval_binop b (eval_d e1 env) (eval_d e2 env) 
+  | Conditional(e1, e2, e3) ->
+      (match eval_d e1 env with 
+      | Bool true -> eval_d e2 env
+      | Bool false -> eval_d e3 env
+      | _ -> raise (EvalError ": is not of type bool ")) 
+  (*if we find a unapplied function we should just reuturn it as utop does*)
+  | Fun(id, e) -> Fun(id, e)
+  | Let(id, e1, e2)-> eval_d e2 (Env.extend env id (ref (Env.Val e1))) 
+  | Letrec(id, recfun, e2) ->
+      let eval_recfun = (eval_d recfun (Env.extend env id (ref 
+                        (Env.Val Unassigned)))) in
+      eval_d e2 (Env.extend env id (ref (Env.Val eval_recfun)))
+  
+  | Raise -> raise (EvalError "exception raised")
+  | Unassigned -> raise EvalException
+  | App (f, e1) ->
+     eval_app f (eval_d e1 env) env 
+  | Num n -> Num n
+   ;;
+(* in eval_l we want to work with values instead of exprs, so we need to do
+  * most of our evaluation inside a helper function and then match the 
+  * result to return an expr for minimml.ml to display*) 
+let eval_l (exp : expr) (env : Env.env) : expr = 
+  let rec heval_l (exp_val : Env.value) : Env.value = 
+    let (exp, env )=
+      match exp_val with 
+      | Env.Val e -> (e, Env.create()) 
+      | Env.Closure (ex, en) -> (ex, en) in  
+    print_string (exp_to_abstract_string exp ^ "\n");
+    let replace id env : expr = 
+      match Env.lookup env id with
+                | Env.Val (expr) -> expr
+                | Env.Closure (expr, _) -> expr in
+   
+    (*we have to do the var replacing in here or else nested apps attempt
+     * to replace functions with other functions and we lose track of the 
+     * first value we apply to the first function. This is due to the way
+     * expressions are parsed i.e f f 3= App( App(f,f),3) rather than
+     * App(f, App(f,3))
+     * currently works for f f 3 and also I think f f f 3 *)
+    let rec eval_app (f : Env.value) (e : Env.value) =
+      let exp, env =
+        match f with
+        | Env.Val _ ->
+            raise (EvalError "Val passed into eval_app, expected closure")
+        | Env.Closure(exp, env) -> exp, env in
+      (match exp  with
+      | Var id -> eval_app (Env.close (replace id env) env) e
+      | App(Var id1, Var id2) ->
+          eval_app (Env.close (App((replace id1 env), (replace id2 env))) env) e
+      | Fun (id, body) -> 
+          print_string "fun e \n";
+          heval_l (Env.close body (Env.extend env id (ref e)))
+      | App(Fun(id1, body1), Fun(id2, body2)) ->
+          print_string "fun fun \n";
+          eval_app (Env.close (Fun(id1, body1)) env)
+                   (heval_l (Env.close body2 (Env.extend env id2 (ref e))))
+      | App (App(e1, e2), Fun(id, body)) ->
+          print_string "app fun \n";
+          eval_app (Env.close (App(e1, e2)) env)
+                   (heval_l (Env.close body (Env.extend env id (ref e))))
+      | App (App(e1, e2), e3) -> eval_app (Env.close (App(e1, e2)) env) 
+                                (eval_app (Env.close e3 env) e)    
+          (*
+          (match func with 
+          | Fun (id, body) ->
+              let first_app = eval_d body (Env.extend env id 
+                              (ref (Env.Val (eval_d e env)))) in
+              eval_app func first_app env
+          | App (e1, e2) -> eval_app (eval_d e1 env) (eval_d e2 env) env
+          | _ -> print_string (exp_to_string func);
+          raise (EvalError "This is not a function it cannot be applied")) *)
+      | _ -> 
+           print_string (Env.value_to_string f);
+          raise (EvalError "this is not a function it cannot be applied")) in
+    match exp with 
+    | Var id -> heval_l (Env.close(replace id env) env)
+    | Bool b -> Env.close (Bool b) env
+    | Unop(_, e) -> 
+        (match (heval_l (Env.close e env)) with
+        | Env.Closure(Num n, env2) -> Env.close (Num (~- n)) env2
+        | _ -> raise (EvalError "attempted to negate a non-integer") )
+    | Binop(b, e1, e2) -> 
+        (match (heval_l (Env.close e1 env)), (heval_l (Env.close e2 env)) with
+        | Env.Closure(e1, _), Env.Closure(e2, _) -> Env.close (eval_binop b e1 e2) env
+        | _ -> raise (EvalError "hamish returned a val instead of a closu"))
+    | Conditional(e1, e2, e3) ->
+        (match heval_l (Env.close e1 env) with 
+        | Env.Closure(Bool true, env1) -> heval_l (Env.close e2 env1)
+        | Env.Closure(Bool false, env1) -> heval_l (Env.close e3 env1)
+        | _ -> raise (EvalError ": is not of type bool ")) 
+    (*if we find a unapplied function we should just reuturn it as utop does*)
+    | Fun(id, e) -> Env.close (Fun(id, e)) env
+    | Let(id, e1, e2)-> 
+        heval_l (Env.close e2 (Env.extend env id (ref (Env.Val e1)))) 
+    | Letrec(id, recfun, e2) ->
+        (*should Unassigned be a val *)
+        let eval_recfun = (heval_l (Env.close recfun (Env.extend env id (ref 
+                          (Env.Val Unassigned))))) in
+        heval_l (Env.close e2 (Env.extend env id (ref  eval_recfun)))
+    
+    | Raise -> raise (EvalError "exception raised")
+    | Unassigned -> raise EvalException
+    | App (f, e1) ->
+       eval_app (Env.close f env) (heval_l (Env.close e1 env)) 
+    | Num n -> (Env.close(Num n) env) in
 
-let evaluate = eval_t ;;
+  match heval_l (Env.close exp env) with
+  | Env.Val exp -> exp
+  | Env.Closure (exp, env) -> exp
+;;
+   
+
+let evaluate = eval_s ;;
