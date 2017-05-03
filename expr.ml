@@ -50,7 +50,7 @@ let same_vars = SS.equal;;
 let vars_of_list = SS.of_list ;;
   
 (* Return a set of the variable names free in [exp] *)
-let rec free_vars (exp : expr) : varidset =
+let free_vars (exp : expr) : varidset =
   let rec all_vars (e : expr) (all : varidset) (used : varidset)
          : (varidset * varidset) =
     (match e with
@@ -70,11 +70,13 @@ let rec free_vars (exp : expr) : varidset =
         (SS.union (SS.union lused mused) rused) 
     | Fun (id, e1) -> all_vars e1 all (SS.add id used)
     | Let (id, e1, e2) -> 
+  (*e1 remove id e2 *)
         let nused = SS.add id used in
         let lall, lused = all_vars e1 all nused in
         let rall, rused = all_vars e2 all nused in
         (SS.union lall rall), (SS.union lused rused)
     | Letrec (id, e1, e2) -> 
+(* union e1 and e2 then remove*)
         let nused = SS.add id used in
         let lall, lused = all_vars e1 all nused in
         let rall, rused = all_vars e2 all nused in

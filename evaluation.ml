@@ -49,7 +49,7 @@ module Env : Env_type =
     (* Looks up the value of a variable in the environment *)
     let lookup (env : env) (varname : varid) : value =
       try  
-        let (_,valref) = List.find (fun (id, _) -> id = varname) env in
+        let (_, valref) = List.find (fun (id, _) -> id = varname) env in
         !valref
       with
       Not_found -> raise (EvalError ("unbound variable " ^ varname)) 
@@ -197,13 +197,21 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
    ;;
 (* in eval_l we want to work with values instead of exprs, so we need to do
   * most of our evaluation inside a helper function and then match the 
-  * result to return an expr for minimml.ml to display*) 
+  * result to return an expr for minimml.ml to display*)
+let cur_def id env : bool =
+  try
+    let _ = replace id env in
+    true 
+  with
+    EvalError _ -> false ;;
 let eval_l (exp : expr) (env : Env.env) : expr = 
   let rec heval_l (exp_val : Env.value) : Env.value = 
+    (*print_string ("start val  "^Env.value_to_string exp_val ^ "\n"); *)
     let (exp, env)=
       match exp_val with 
       | Env.Val e -> (e, Env.create()) 
       | Env.Closure (ex, en) -> (ex, en) in  
+    print_string ("start exp" ^ exp_to_string exp ^"\n");
     match exp with 
     | Var id -> heval_l (Env.close(replace id env) env)
     | Bool b -> Env.close (Bool b) env
@@ -220,25 +228,39 @@ let eval_l (exp : expr) (env : Env.env) : expr =
         (match heval_l (Env.close e1 env) with 
         | Env.Closure(Bool true, env1) -> heval_l (Env.close e2 env1)
         | Env.Closure(Bool false, env1) -> heval_l (Env.close e3 env1)
-        | _ -> raise (EvalError ": is not of type bool ")) 
-    | Fun(id, e) -> Env.close (Fun(id, e)) env
-    | Let(id, e1, e2)-> 
-        heval_l (Env.close e2 (Env.extend env id (ref (Env.Val e1)))) 
-    | Letrec(id, recfun, e2) ->
+        | _ -> raise (EvalError (exp_to_string e1 ^": is not of type bool ")))
+    | Fun(id, e) -> 
+        print_string (Env.value_to_string (Env.close (Fun(id,e)) env ));
+        let env1 = 
+        match (Env.lookup env id) with
+        |Env.Closure (_, en) -> en
+        |Env.Val _ -> Env.create ()  in
+        Env.close (Fun(id, e)) env1
+    | Let(id, e1, e2)->
+       (* if cur_def id env then heval_l (Env.close e2 env)
+        else *)  heval_l (Env.close e2 (Env.extend env id (ref (Env.close e1 env))) )  
+    (*    let env1 =  (Env.extend env id (ref (Env.Val e1))) in  
+        print_string ("env1 " ^Env.env_to_string env1 ^ "\n");
+        (match e2 with    
+         | Let(id2, exp1, exp2) -> heval_l (Env.close exp2 (Env.extend env id2 (ref (heval_l (Env.close exp1 env1))))) 
+         | _ ->  heval_l (Env.close e2 env1)) 
+  *)  | Letrec(id, recfun, e2) ->
         let eval_recfun = (heval_l (Env.close recfun (Env.extend env id (ref 
                           (Env.Val Unassigned))))) in
         heval_l (Env.close e2 (Env.extend env id (ref eval_recfun)))
     | Raise -> raise EvalException
     | Unassigned -> raise (EvalError "Unassigned variable")
     | App (f, e1) ->
-      (match heval_l (Env.close f env), heval_l (Env.close e1 env) with
-      | Env.Closure(Fun(id, body), env1), Env.Closure(e, env2) -> 
-          heval_l (Env.close body (Env.extend env id (ref (Env.Val e))))
+      
+      print_string ((Env.env_to_string env) ^ "\n");
+     (match heval_l (Env.close f env), heval_l (Env.close e1 env) with
+      | Env.Closure(Fun(id, body), env1), Env.Closure(e, _) -> 
+         print_string ("env: "^(Env.env_to_string (Env.extend env id (ref (Env.Val e)))) ^ "\n");
+          heval_l (Env.close body (Env.extend env1 id (ref (Env.Val e))))
       | _ -> raise (EvalError "this is not a function it cannot be applied"))
     | Num n -> (Env.close(Num n) env) in
   match heval_l (Env.close exp env) with
   | Env.Val exp -> exp
-  | Env.Closure (exp, env) -> exp;;
+  | Env.Closure (exp, _) -> exp;;
    
-
 let evaluate = eval_l ;;
