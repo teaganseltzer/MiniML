@@ -58,9 +58,9 @@ module Env : Env_type =
        variable varid to loc *)
     let extend (env : env) (varname : varid) (loc : value ref) : env =
       try 
-        let(_) = lookup env varname in
-        List.map (fun (id, valref) -> if id = varname then id, loc else id, valref)
-        env
+        let _ = lookup env varname in
+        List.map (fun (id, valref) -> 
+            if id = varname then id, loc else id, valref) env
       with
         EvalError _ -> (varname, loc) :: env  
 
@@ -97,7 +97,6 @@ module Env : Env_type =
 (** The external evaluator, which can be either the identity function,
     the substitution model version or the dynamic or lexical
     environment model version. *)
-
 let eval_t exp _env = exp ;;
 
 (*helper function to evaluate binops *)
@@ -140,8 +139,8 @@ let rec eval_s exp env =
         | Fun(recfun_id, recfun_body) -> recfun_id, recfun_body
         | _ -> raise (EvalError "cannot use letrec with a non function")) in
       let newvar = new_varname () in
-      let newrecfun = Fun(newvar, subst recfun_id (Var(newvar)) recfun_body) in
-      let newrec = subst id (Letrec(id, newrecfun, Var(id))) recfun in
+      let newrecfun = Fun(newvar, subst recfun_id (Var newvar) recfun_body) in
+      let newrec = subst id (Letrec(id, newrecfun, Var id)) recfun in
       eval_s (subst id newrec e2) env
   | Raise -> raise EvalException
   | Unassigned -> raise (EvalError "Unassigned variable")
@@ -194,7 +193,7 @@ let rec eval_l (exp : expr) (env : Env.env) : expr =
   let rec heval_l (inval : Env.value) (env : Env.env) : Env.value =   
     let exp =
       match inval with 
-      | Env.Val(e) -> e
+      | Env.Val e -> e
       | Env.Closure(e, _) -> e in
     match exp with 
     | Var id -> heval_l (Env.Val( replace id env)) env
