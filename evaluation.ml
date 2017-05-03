@@ -72,7 +72,8 @@ module Env : Env_type =
       | Closure(exp, env) -> 
           if printenvp then
             "value: " ^ (exp_to_string exp) ^ "; [ " ^ (List.fold_right 
-            (fun (id, valref) c -> id ^ (value_to_string !valref) ^ c ) env "") ^ "]"
+            (fun (id, valref) c -> id ^ (value_to_string !valref) ^ c ) 
+            env "") ^ "]"
           else exp_to_string exp 
       | Val e -> exp_to_string e
    
@@ -111,7 +112,7 @@ let eval_t exp _env = exp ;;
 
 let rec eval_s exp env =
   match exp with 
-  | Var id -> raise (EvalError "unbound variable")
+  | Var _ -> raise (EvalError "unbound variable")
   | Bool b -> Bool b
   (*currently do not need to worry about what the unop is as we only have 1 *)
   | Unop(_, e) -> 
@@ -184,10 +185,8 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
        | (Fun(id, body), e ) ->
             eval_d body (Env.extend env id (ref (Env.Val e)))  
        | _ -> raise (EvalError "this is not a function it cannot be applied"))
+  | Num n -> Num n;;
 
-  (*    eval_app f (eval_d e1 env) env *) 
-  | Num n -> Num n
-   ;;
 (* in eval_l we want to work with values instead of exprs, so we need to do
   * most of our evaluation inside a helper function and then match the 
   * result to return an expr for minimml.ml to display*)
@@ -223,16 +222,15 @@ let rec eval_l (exp : expr) (env : Env.env) : expr =
        (Env.Val (eval_l e2  (Env.extend env id (ref (Env.Val eval_recfun)))))
     | Raise -> raise EvalException
     | Unassigned -> raise (EvalError "Unassigned variable")
-    | App (e1, e2) ->
+    | App(e1, e2) ->
         (match heval_l (Env.Val e1) env with
         | Env.Closure(Fun(id, body), c_env ) ->
             heval_l (Env.Val body) (Env.extend c_env id 
             (ref (heval_l (Env.Val e2) env)))
-        | Env.Val v -> heval_l (Env.Val v)  env
         | _ -> raise (EvalError "this is not a function it cannot be applied"))
     | Num n -> (Env.Val(Num n)) in
   match heval_l (Env.Val exp) env with
   | Env.Val exp -> exp
   | Env.Closure (exp, _) -> exp;;
    
-let evaluate = eval_s ;;
+let evaluate = eval_l ;;
