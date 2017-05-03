@@ -119,7 +119,13 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
     | Binop (b, e1, e2) -> Binop(b, part_subst e1, part_subst e2 )
     | Conditional (e1, e2, e3) ->
         Conditional (part_subst e1, part_subst e2, part_subst e3)
-    | Fun (e1, e2) -> Fun(e1, part_subst e2)
+    | Fun (id, e1) -> 
+        if id = var_name then Fun(id, e1)
+        else if id <> var_name && not (SS.mem id (free_vars repl))
+        then Fun(id, part_subst e1)
+        else let nvar = new_varname () in
+        Fun(nvar, subst id (Var nvar) (subst var_name repl e1))
+        (*Fun(e1, part_subst e1) *)
     | Let (id, e1, e2) -> 
         if id = var_name 
         then Let(id, part_subst e1, e2)

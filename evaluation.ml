@@ -140,7 +140,7 @@ let rec eval_s exp env =
         eval_app (Fun(id2, (subst id1 (Fun(id2,f2)) f1))) e
     | _ -> raise (EvalError "this is not a function, it cannot be applied") in
   *)match exp with 
-  | Var id -> Var id
+  | Var id -> raise (EvalError "unbound variable")
   | Bool b -> Bool b
   (*currently do not need to worry about what the unop is as we only have 1 *)
   | Unop(_, e) -> 
@@ -184,10 +184,10 @@ let rec eval_s exp env =
       print_string ("e: " ^ exp_to_string e1 ^ "\n");
       (match eval_s f env, e1 with
       | (Fun(id, body), Fun(id2, body2)) -> 
-          eval_s (Fun(id2, subst id body2 body)) env
+          eval_s (subst id  (Fun(id2, body2)) body) env
       | (Fun(id, body), _ ) -> 
           print_string( "sub e1 into f: " ^ exp_to_string ((subst id (eval_s e1 env) body )) ^ "\n");
-          eval_s (Fun(id, subst id (eval_s e1 env) body )) env
+          eval_s (subst id (eval_s e1 env) body ) env
       | _ -> raise (EvalError "this is not a function it cannot be applied"))
   | Num n -> Num n
    ;; 
@@ -222,15 +222,6 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
         print_string "app fun \n";
         eval_app (App(e1, e2)) (eval_d body (Env.extend env id (ref (Env.Val e)))) env
     | App (App(e1, e2), e3) -> eval_app (App(e1, e2)) (eval_app e3 e env) env   
-        (*
-        (match func with 
-        | Fun (id, body) ->
-            let first_app = eval_d body (Env.extend env id 
-                            (ref (Env.Val (eval_d e env)))) in
-            eval_app func first_app env
-        | App (e1, e2) -> eval_app (eval_d e1 env) (eval_d e2 env) env
-        | _ -> print_string (exp_to_string func);
-        raise (EvalError "This is not a function it cannot be applied")) *)
     | _ -> 
          print_string (exp_to_string f);
         raise (EvalError "this is not a function it cannot be applied")) in
@@ -254,7 +245,6 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
       let eval_recfun = (eval_d recfun (Env.extend env id (ref 
                         (Env.Val Unassigned)))) in
       eval_d e2 (Env.extend env id (ref (Env.Val eval_recfun)))
-  
   | Raise -> raise (EvalError "exception raised")
   | Unassigned -> raise EvalException
   | App (f, e1) ->
