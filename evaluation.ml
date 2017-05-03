@@ -198,9 +198,9 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
 (* in eval_l we want to work with values instead of exprs, so we need to do
   * most of our evaluation inside a helper function and then match the 
   * result to return an expr for minimml.ml to display*)
-let eval_l (exp : expr) (env : Env.env) : expr = 
+let rec eval_l (exp : expr) (env : Env.env) : expr = 
   let rec heval_l (inval : Env.value) (env : Env.env) : Env.value =   
-  (*print_string ("start val  "^Env.value_to_string exp_val ^ "\n"); *)
+  print_string ("start val  "^Env.value_to_string inval ^ "\n"); 
     let exp =
       match inval with 
       | Env.Val(e) -> e
@@ -212,10 +212,11 @@ let eval_l (exp : expr) (env : Env.env) : expr =
         (match (heval_l (Env.Val e) env) with
         | Env.Val(Num n) -> (Env.Val (Num (~- n)))
         | _ -> raise (EvalError "attempted to negate a non-integer"))
-    | Binop(b, e1, e2) -> 
+    | Binop(b, e1, e2) ->
+        print_string ("binopn env:   " ^ Env.env_to_string env); 
         (match (heval_l (Env.Val e1) env), (heval_l (Env.Val e2) env) with
         | Env.Val e1, Env.Val e2 ->
-             Env.close (eval_binop b e1 e2) env
+             Env.Val (eval_binop b e1 e2)
         | _ -> raise (EvalError "eval_l passed Val instead of Closure"))
     | Conditional(e1, e2, e3) ->
         (match heval_l (Env.Val e1) env with 
@@ -226,10 +227,16 @@ let eval_l (exp : expr) (env : Env.env) : expr =
     | Let(id, e1, e2)->
          heval_l (Env.Val e2) (Env.extend env id (ref (Env.close e1 env)))  
     | Letrec(id, recfun, e2) ->
+        let eval_recfun = (eval_l recfun (Env.extend env id (ref 
+                        (Env.Val Unassigned)))) in
+      (Env.Val (eval_l e2  (Env.extend env id (ref (Env.Val eval_recfun)))))
+
+(*
+
         let eval_recfun = (heval_l (Env.Val recfun) (Env.extend env id (ref 
                           (Env.Val Unassigned)))) in
         heval_l (Env.Val e2) (Env.extend env id (ref eval_recfun))
-    | Raise -> raise EvalException
+  *)  | Raise -> raise EvalException
     | Unassigned -> raise (EvalError "Unassigned variable")
     | App (e1, e2) ->
         (match heval_l (Env.Val e1) env with
@@ -237,12 +244,15 @@ let eval_l (exp : expr) (env : Env.env) : expr =
             print_string (" e2 is: " ^exp_to_string e2 ^ "\n");
             print_string "closure \n";
             print_string (Env.env_to_string c_env ^ "\n");
-            heval_l (Env.Val body) (Env.extend c_env id (ref (heval_l (Env.Val e2) env)))
-        | Env.Val v -> heval_l (Env.Val v) env
+            print_string ("new env" ^ Env.env_to_string (Env.extend c_env id (ref
+ (heval_l (Env.Val e2) env)))^ "\n" );
+
+      heval_l (Env.Val body) (Env.extend c_env id (ref (heval_l (Env.Val e2) env)))
+        | Env.Val v -> heval_l (Env.Val v)  env
         | _ -> raise (EvalError "this is not a function it cannot be applied"))
     | Num n -> (Env.Val(Num n)) in
   match heval_l (Env.Val exp) env with
   | Env.Val exp -> exp
   | Env.Closure (exp, _) -> exp;;
    
-let evaluate = eval_l ;;
+let evaluate = eval_t ;;

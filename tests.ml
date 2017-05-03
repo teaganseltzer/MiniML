@@ -29,6 +29,10 @@ let abs_expr10 = Let("y", Num(3), Binop(Plus, Var("x"),
                 Var("x")));;
 let abs_expr11 = Let("z", Num(1), Let("f", Fun("y", Binop(Plus, Var("z"),
                  Var("y"))), Let("z", Num(2), App(Var("f"), Num(1)))));;
+let abs_expr12 = Let("twice", Fun("f", Fun("y", App(Var("f"), App(Var("f"),
+                 Var("y"))))), Let("square", Fun("x", Binop(Times, Var("x"),
+                 Var("x"))), App(App(Var("twice"), Var("square")), Num(3))));;
+
 let test_exp_to_abstract_string () =
   assert(exp_to_abstract_string abs_expr1 = abs_string_expr1);
   assert(exp_to_abstract_string abs_expr2 = abs_string_expr2);;
@@ -61,7 +65,8 @@ let test_eval_s () =
   (*assert(eval_s abs_expr7 [] = Num 24); *)
   assert(eval_s abs_expr5 [] = Num 6);
   assert(eval_s abs_expr8 [] = Num 55);
-  assert(eval_s abs_expr9 [] = Num 6);;
+  assert(eval_s abs_expr9 [] = Num 6);
+  assert(eval_s abs_expr12 [] = Num 81);;
 
 let test_eval_d () =
   assert(eval_d abs_expr1 (Env.create()) = Num 12);
@@ -72,14 +77,14 @@ let test_eval_d () =
   assert(eval_d abs_expr9 (Env.create()) = Num 6);;
 
 let test_eval_l () =
-(*  assert(eval_l abs_expr1 (Env.create()) = Num 12);
+  assert(eval_l abs_expr1 (Env.create()) = Num 12);
   assert(eval_l abs_expr4 (Env.create()) = Num 8);
-  assert(eval_d abs_expr7 (Env.create()) = Num 24); *)
+(*  assert(eval_d abs_expr7 (Env.create()) = Num 24); *)
   assert(eval_l abs_expr5 (Env.create()) = Num 6);
   assert(eval_l abs_expr8 (Env.create()) = Num 55);
   assert(eval_l abs_expr9 (Env.create()) = Num 6);
-  assert(eval_l abs_expr11 (Env.create()) = Num 3);;
-
+  assert(eval_l abs_expr11 (Env.create()) = Num 3);
+  assert(eval_l abs_expr12 (Env.create()) = Num 81);;
 
 let run_tests () =
   test_exp_to_abstract_string () ;
