@@ -1,10 +1,6 @@
 open Expr;;
 open Evaluation;;
-(*module SS = Set.Make (struct
-                      type t = Expr.varid
-                      let compare = String.compare
-  end );;
-type varidset = SS.t ;; *)
+
 let abs_expr1 = Let("f", Fun("x", Binop(Plus, Var("x"), Var("x"))), 
                 App(Var("f"), App(Var("f"), Num(3))));; 
 let abs_string_expr1 = "Let(f, Fun(x, Binop(+, Var(x), Var(x))), App(Var(f), App(Var(f), Num(3))))";;
@@ -31,6 +27,8 @@ let abs_expr9 = Let("x", Var("y"), Let("y", Num(3), Binop(Plus, Var("x"),
                 Var("x"))));;
 let abs_expr10 = Let("y", Num(3), Binop(Plus, Var("x"), 
                 Var("x")));;
+let abs_expr11 = Let("z", Num(1), Let("f", Fun("y", Binop(Plus, Var("z"),
+                 Var("y"))), Let("z", Num(2), App(Var("f"), Num(1)))));;
 let test_exp_to_abstract_string () =
   assert(exp_to_abstract_string abs_expr1 = abs_string_expr1);
   assert(exp_to_abstract_string abs_expr2 = abs_string_expr2);;
@@ -74,13 +72,13 @@ let test_eval_d () =
   assert(eval_d abs_expr9 (Env.create()) = Num 6);;
 
 let test_eval_l () =
-  assert(eval_d abs_expr1 (Env.create()) = Num 12);
-  assert(eval_d abs_expr4 (Env.create()) = Num 8);
-(*  assert(eval_d abs_expr7 (Env.create()) = Num 24); *)
-  assert(eval_d abs_expr5 (Env.create()) = Num 6);
-  assert(eval_d abs_expr8 (Env.create()) = Num 55);
-  assert(eval_d abs_expr9 (Env.create()) = Num 6);;
-
+(*  assert(eval_l abs_expr1 (Env.create()) = Num 12);
+  assert(eval_l abs_expr4 (Env.create()) = Num 8);
+  assert(eval_d abs_expr7 (Env.create()) = Num 24); *)
+  assert(eval_l abs_expr5 (Env.create()) = Num 6);
+  assert(eval_l abs_expr8 (Env.create()) = Num 55);
+  assert(eval_l abs_expr9 (Env.create()) = Num 6);
+  assert(eval_l abs_expr11 (Env.create()) = Num 3);;
 
 
 let run_tests () =
