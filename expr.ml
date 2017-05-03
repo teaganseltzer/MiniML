@@ -87,16 +87,12 @@ let rec free_vars (exp : expr) : varidset =
         (SS.union lall rall), (SS.union lused rused)) in 
   let all, used = all_vars exp SS.empty SS.empty in
   let free = SS.filter (fun x -> not (SS.mem x used)) all in
-(*  SS.iter print_string free;
-  print_string "\n used:";
-  SS.iter print_string used;
-  print_string "\n all";
-  SS.iter print_string all; *)
   free;;
 
 (* returns a varid list from a varid set *)
 let  list_of_varidset (s : varidset) : varid list =
   SS.elements s;;
+
 (* Return a fresh variable, constructed with a running counter a la
     gensym. Assumes no variable names use the prefix "var". *)
 let new_varname =
@@ -121,11 +117,10 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
         Conditional (part_subst e1, part_subst e2, part_subst e3)
     | Fun (id, e1) -> 
         if id = var_name then Fun(id, e1)
-        else if id <> var_name && not (SS.mem id (free_vars repl))
+        else if not (SS.mem id (free_vars repl))
         then Fun(id, part_subst e1)
         else let nvar = new_varname () in
-        Fun(nvar, subst id (Var nvar) (subst var_name repl e1))
-        (*Fun(e1, part_subst e1) *)
+        Fun(nvar, subst_helper id (Var nvar) (part_subst e1))
     | Let (id, e1, e2) -> 
         if id = var_name 
         then Let(id, part_subst e1, e2)
@@ -134,16 +129,12 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
     (*unsure if order of subst matters here, if errors come back to this line *)
         else let nvar = new_varname () in 
           Let(nvar, part_subst e1,
-          subst id (Var nvar ) (part_subst  e2))
-    (*in usage of subst we sont sub a letrec into a letrec, only the e1 into
-     * the e2 in which case the id will be a free var in e2  *)
-    (*I think I have an issue with free vars in rec expressions,  *)
+          subst_helper id (Var nvar ) (part_subst  e2))
     | Letrec (id, e1, e2) ->
         if id = var_name 
         then Letrec(id, part_subst e1, part_subst e2)
         else if id <> var_name && not (SS.mem id (free_vars repl)) 
         then Letrec(id, part_subst e1, part_subst e2) 
-    (*unsure if order of subst matters here, if errors come back to this line *)
         else let nvar = new_varname () in
         print_string "using nvar repl: \n"; 
           Letrec(id, subst var_name repl e1 , subst var_name repl (
@@ -167,8 +158,6 @@ let binop_to_abs_string (b : binop) : string =
 let unop_to_abs_string (u : unop) : string =
     match u with
     | Negate -> "~" ;;
-
-
 
 (* exp_to_string -- Returns a string representation of the expr *)
 let rec exp_to_string (exp : expr) : string =
