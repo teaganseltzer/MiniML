@@ -53,6 +53,7 @@ module Env : Env_type =
         !valref
       with
       Not_found -> raise (EvalError ("unbound variable " ^ varname)) 
+    
     (* Returns a new environment just like env except that it maps the
        variable varid to loc *)
     let extend (env : env) (varname : varid) (loc : value ref) : env =
@@ -70,8 +71,8 @@ module Env : Env_type =
       match v with 
       | Closure(exp, env) -> 
           if printenvp then
-            "value: " ^ (exp_to_string exp) ^ " \n env: " ^ (List.fold_right 
-            (fun (id, valref) c -> id ^ (value_to_string !valref) ^ c ) env "")
+            "value: " ^ (exp_to_string exp) ^ "; [ " ^ (List.fold_right 
+            (fun (id, valref) c -> id ^ (value_to_string !valref) ^ c ) env "") ^ "]"
           else exp_to_string exp 
       | Val e -> exp_to_string e
    
@@ -80,9 +81,8 @@ module Env : Env_type =
     * a helper function to reuse code but value_to_string would not be
     * in the scope of a helper function defined before value_to_string. *)
    let env_to_string (env : env) : string =
-     (List.fold_right (fun (id, valref) c -> "id: " ^ id ^ "val:" ^
-                      (value_to_string !valref ^ "\n")
-      ^ c ) env "")
+     "[" ^ (List.fold_right (fun (id, valref) c -> "( " ^ id ^ ") ; ( " ^
+     (value_to_string !valref ^ ")") ^ c ) env "")
 
   end
 ;;
@@ -107,9 +107,7 @@ let eval_t exp _env = exp ;;
     | Times, Num n1, Num n2 -> Num (n1 * n2)
     | Equals, e1, e2 -> Bool (e1 = e2)
     | LessThan, e1, e2 -> Bool (e1 < e2)
-    | _ -> 
-         print_string (exp_to_string e1 ^ "   " ^ exp_to_string e2);
-        raise (EvalError "Binop used on incorrect types");;
+    | _ -> raise (EvalError "Binop used on incorrect types");;
 
 let rec eval_s exp env =
   match exp with 
@@ -142,18 +140,13 @@ let rec eval_s exp env =
         | _ -> raise (EvalError "cannot use letrec with a non function")) in
       let newvar = new_varname () in
       let newrecfun = Fun(newvar, subst recfun_id (Var(newvar)) recfun_body) in
-      let newe1 = subst id (Letrec(id,newrecfun,Var(id))) recfun in
-      (match e2 with 
-      | Letrec(id2, def, body) ->
-          if id = id2 then eval_s (Letrec(id, def, body)) env
-          else eval_s (Letrec(id2, subst id recfun def, 
-                       subst id recfun body)) env
-      | _ -> eval_s (subst id newe1 e2) env)
+      let newrec = subst id (Letrec(id, newrecfun, Var(id))) recfun in
+      eval_s (subst id newrec e2) env
   | Raise -> raise EvalException
   | Unassigned -> raise (EvalError "Unassigned variable")
   | App (f, e1) ->
       (match eval_s f env, eval_s e1 env with
-      | (Fun(id, body), e ) -> 
+      | (Fun(id, body), e) -> 
           eval_s (subst id (eval_s e env) body ) env
       | _ -> raise (EvalError "this is not a function it cannot be applied"))
   | Num n -> Num n ;; 
@@ -161,8 +154,8 @@ let rec eval_s exp env =
 (*helper function to find find value of var in env *)
 let replace id env : expr = 
   match Env.lookup env id with
-  | Env.Val (expr) -> expr
-  | Env.Closure (expr, _) -> expr ;;
+  | Env.Val(expr) -> expr
+  | Env.Closure(expr, _) -> expr ;;
 
 let rec eval_d (exp : expr) (env : Env.env) : expr =
   match exp with 
@@ -186,7 +179,7 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
       eval_d e2 (Env.extend env id (ref (Env.Val eval_recfun)))
   | Raise -> raise EvalException
   | Unassigned -> raise (EvalError "Unassigned variable")
-  | App (f, e1) ->
+  | App(f, e1) ->
       (match eval_d f env, eval_d e1 env with
        | (Fun(id, body), e ) ->
             eval_d body (Env.extend env id (ref (Env.Val e)))  
@@ -200,7 +193,6 @@ let rec eval_d (exp : expr) (env : Env.env) : expr =
   * result to return an expr for minimml.ml to display*)
 let rec eval_l (exp : expr) (env : Env.env) : expr = 
   let rec heval_l (inval : Env.value) (env : Env.env) : Env.value =   
-  print_string ("start val  "^Env.value_to_string inval ^ "\n"); 
     let exp =
       match inval with 
       | Env.Val(e) -> e
@@ -213,11 +205,10 @@ let rec eval_l (exp : expr) (env : Env.env) : expr =
         | Env.Val(Num n) -> (Env.Val (Num (~- n)))
         | _ -> raise (EvalError "attempted to negate a non-integer"))
     | Binop(b, e1, e2) ->
-        print_string ("binopn env:   " ^ Env.env_to_string env); 
         (match (heval_l (Env.Val e1) env), (heval_l (Env.Val e2) env) with
         | Env.Val e1, Env.Val e2 ->
              Env.Val (eval_binop b e1 e2)
-        | _ -> raise (EvalError "eval_l passed Val instead of Closure"))
+        | _ -> raise (EvalError "Incompatabile types for binop"))
     | Conditional(e1, e2, e3) ->
         (match heval_l (Env.Val e1) env with 
         | Env.Val(Bool true) -> heval_l (Env.Val e2) env
@@ -227,27 +218,16 @@ let rec eval_l (exp : expr) (env : Env.env) : expr =
     | Let(id, e1, e2)->
          heval_l (Env.Val e2) (Env.extend env id (ref (Env.close e1 env)))  
     | Letrec(id, recfun, e2) ->
-        let eval_recfun = (eval_l recfun (Env.extend env id (ref 
-                        (Env.Val Unassigned)))) in
-      (Env.Val (eval_l e2  (Env.extend env id (ref (Env.Val eval_recfun)))))
-
-(*
-
-        let eval_recfun = (heval_l (Env.Val recfun) (Env.extend env id (ref 
-                          (Env.Val Unassigned)))) in
-        heval_l (Env.Val e2) (Env.extend env id (ref eval_recfun))
-  *)  | Raise -> raise EvalException
+        let eval_recfun = (eval_l recfun (Env.extend env id
+                          (ref (Env.Val Unassigned)))) in
+       (Env.Val (eval_l e2  (Env.extend env id (ref (Env.Val eval_recfun)))))
+    | Raise -> raise EvalException
     | Unassigned -> raise (EvalError "Unassigned variable")
     | App (e1, e2) ->
         (match heval_l (Env.Val e1) env with
         | Env.Closure(Fun(id, body), c_env ) ->
-            print_string (" e2 is: " ^exp_to_string e2 ^ "\n");
-            print_string "closure \n";
-            print_string (Env.env_to_string c_env ^ "\n");
-            print_string ("new env" ^ Env.env_to_string (Env.extend c_env id (ref
- (heval_l (Env.Val e2) env)))^ "\n" );
-
-      heval_l (Env.Val body) (Env.extend c_env id (ref (heval_l (Env.Val e2) env)))
+            heval_l (Env.Val body) (Env.extend c_env id 
+            (ref (heval_l (Env.Val e2) env)))
         | Env.Val v -> heval_l (Env.Val v)  env
         | _ -> raise (EvalError "this is not a function it cannot be applied"))
     | Num n -> (Env.Val(Num n)) in
@@ -255,4 +235,4 @@ let rec eval_l (exp : expr) (env : Env.env) : expr =
   | Env.Val exp -> exp
   | Env.Closure (exp, _) -> exp;;
    
-let evaluate = eval_t ;;
+let evaluate = eval_s ;;

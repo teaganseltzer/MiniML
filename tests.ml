@@ -59,6 +59,14 @@ let test_subst () =
   assert(subst "x" (Var "y") abs_expr10 = Let("x0", Num(3), Binop(Plus, 
          Var "x0", Var "x0")));
 *)
+
+let test_lookextend () =
+  let env = Env.create() in
+  let env = Env.extend env "x" (ref (Env.Val (Num 5))) in
+  assert(Env.lookup env "x" = Env.Val (Num 5));
+  let env = Env.extend env "x" (ref (Env.Val (Num 10))) in
+  assert(Env.lookup env "x" = Env.Val (Num 10));;
+
 let test_eval_s () =
   assert(eval_s abs_expr1 [] = Num 12);
   assert(eval_s abs_expr4 [] = Num 8);
@@ -87,11 +95,13 @@ let test_eval_l () =
   assert(eval_l abs_expr12 (Env.create()) = Num 81);;
 
 let run_tests () =
-  test_exp_to_abstract_string () ;
-  test_free_vars (); 
+  test_exp_to_abstract_string ();
+  test_free_vars ();
+  test_lookextend (); 
   test_subst ();
-  test_eval_s();
-  test_eval_d();
-  test_eval_l();; 
-run_tests();;
+  test_eval_s ();
+  test_eval_d ();
+  test_eval_l ();;
+
+run_tests ();;
 print_string "all tests passed \n";;
