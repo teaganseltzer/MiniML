@@ -1,12 +1,1 @@
-
-##project
------
-Before you start working, add the extra remote repository for project. To do so, run:
-
-`git remote add distribution git@github.com:cs51/project.git`
-
-To check for updates, run:
-
-`git pull distribution master`
-
-You should run this periodically to check for updates.
+This is my final project for CS51. I implemented a language called MiniML which is roughly speaking a subset of Ocaml. I implemented the language with three different environment models. A subsitution model, a dynamic environment model and a lexical environment model. 
